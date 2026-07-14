@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { 
   getActiveUserEmail, 
@@ -36,6 +37,8 @@ interface SessionContextType {
   enableBiometrics: () => Promise<void>;
   disableSecurityLocks: () => Promise<void>;
   refreshConfig: () => Promise<void>;
+  categories: { key: string; label: string }[];
+  addCategory: (label: string) => Promise<boolean>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -49,6 +52,63 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [pinEnabled, setPinEnabled] = useState(false);
   const [appLoading, setAppLoading] = useState(true);
+  const [categories, setCategories] = useState<{ key: string; label: string }[]>([]);
+
+  // Load user categories when activeUser logs in/changes
+  useEffect(() => {
+    const loadCategories = async () => {
+      if (!activeUser) {
+        setCategories([]);
+        return;
+      }
+      try {
+        const storedCats = await AsyncStorage.getItem(`${activeUser}_categories`);
+        if (storedCats) {
+          setCategories(JSON.parse(storedCats));
+        } else {
+          const defaultCats = [
+            { key: 'personal', label: 'Kişisel' },
+            { key: 'work', label: 'İş' },
+            { key: 'social', label: 'Sosyal' },
+            { key: 'finance', label: 'Finans' },
+            { key: 'other', label: 'Diğer' }
+          ];
+          await AsyncStorage.setItem(`${activeUser}_categories`, JSON.stringify(defaultCats));
+          setCategories(defaultCats);
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      }
+    };
+    loadCategories();
+  }, [activeUser]);
+
+  const addCategory = async (label: string): Promise<boolean> => {
+    if (!activeUser || !label.trim()) return false;
+    
+    // Normalize label to dynamic slug key (Turkish characters mapping)
+    const key = label.trim().toLowerCase()
+      .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+      .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    if (!key) return false;
+
+    // Check duplicate
+    if (categories.some(c => c.key === key)) {
+      return false;
+    }
+
+    try {
+      const newCats = [...categories, { key, label: label.trim() }];
+      await AsyncStorage.setItem(`${activeUser}_categories`, JSON.stringify(newCats));
+      setCategories(newCats);
+      return true;
+    } catch (err) {
+      console.error('Failed to save category:', err);
+      return false;
+    }
+  };
 
   // Initialize and check device capabilities and registered users
   useEffect(() => {
@@ -226,6 +286,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         enableBiometrics,
         disableSecurityLocks,
         refreshConfig,
+        categories,
+        addCategory,
       }}
     >
       {children}

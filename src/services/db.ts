@@ -26,7 +26,7 @@ export interface CredentialEntry {
   passwordEncrypted: string;
   link: string;
   notesEncrypted: string;
-  category: 'social' | 'work' | 'finance' | 'personal' | 'other';
+  category: string;
   updatedAt: string;
 }
 

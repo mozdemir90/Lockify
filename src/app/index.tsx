@@ -49,7 +49,7 @@ import { generatePassword } from '../services/crypto';
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
-  const { lock, activeUser } = useSession();
+  const { lock, activeUser, categories, addCategory } = useSession();
 
   // Vault data state
   const [entries, setEntries] = useState<DecryptedCredentialEntry[]>([]);
@@ -66,12 +66,17 @@ export default function HomeScreen() {
   const [formPassword, setFormPassword] = useState('');
   const [formLink, setFormLink] = useState('');
   const [formNotes, setFormNotes] = useState('');
-  const [formCategory, setFormCategory] = useState<'social' | 'work' | 'finance' | 'personal' | 'other'>('personal');
+  const [formCategory, setFormCategory] = useState<string>('personal');
   const [showFormPassword, setShowFormPassword] = useState(false);
 
   // Move Category states
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [selectedEntryForMove, setSelectedEntryForMove] = useState<DecryptedCredentialEntry | null>(null);
+
+  // Add Category states
+  const [newCategoryModalVisible, setNewCategoryModalVisible] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategorySource, setNewCategorySource] = useState<'filter' | 'form' | 'move' | null>(null);
 
   // Load vault entries
   const loadVault = async () => {
@@ -144,6 +149,59 @@ export default function HomeScreen() {
     } catch (err) {
       Alert.alert('Hata', 'Kategori değiştirilemedi.');
     }
+  };
+
+  // Handle adding new custom category
+  const handleAddNewCategory = async () => {
+    if (!newCategoryName.trim()) {
+      if (Platform.OS === 'web') alert('Lütfen kategori adı girin.');
+      else Alert.alert('Hata', 'Lütfen kategori adı girin.');
+      return;
+    }
+
+    const success = await addCategory(newCategoryName.trim());
+    if (!success) {
+      if (Platform.OS === 'web') alert('Bu isimde bir kategori zaten mevcut veya geçersiz.');
+      else Alert.alert('Hata', 'Bu isimde bir kategori zaten mevcut veya geçersiz.');
+      return;
+    }
+
+    const key = newCategoryName.trim().toLowerCase()
+      .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+      .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    if (newCategorySource === 'filter') {
+      setSelectedCategory(key);
+    } else if (newCategorySource === 'form') {
+      setFormCategory(key);
+    } else if (newCategorySource === 'move' && selectedEntryForMove) {
+      try {
+        const updatedEntries = entries.map(entry => {
+          if (entry.id === selectedEntryForMove.id) {
+            return {
+              ...entry,
+              category: key,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return entry;
+        });
+        await saveVaultEntries(updatedEntries);
+        setEntries(updatedEntries);
+        setMoveModalVisible(false);
+        setSelectedEntryForMove(null);
+      } catch (err) {
+        console.error('Auto move failed:', err);
+      }
+    }
+
+    setNewCategoryName('');
+    setNewCategoryModalVisible(false);
+    setNewCategorySource(null);
+    
+    if (Platform.OS === 'web') alert('Kategori başarıyla eklendi.');
+    else Alert.alert('Başarılı', 'Kategori başarıyla eklendi.');
   };
 
   // Open modal for add
@@ -301,20 +359,15 @@ export default function HomeScreen() {
   const getIcon = (category: string, type: string) => {
     if (category === 'social') return <Globe size={20} color={colors.primary} />;
     if (category === 'finance') return <Lock size={20} color={colors.success} />;
+    if (category === 'personal') return <Key size={20} color={colors.textSecondary} />;
+    if (category === 'work') return <FileText size={20} color={colors.textSecondary} />;
     
     if (type === 'email') return <Mail size={20} color={colors.textSecondary} />;
     if (type === 'phone') return <Smartphone size={20} color={colors.textSecondary} />;
-    return <Key size={20} color={colors.textSecondary} />;
+    return <FolderOpen size={20} color={colors.textSecondary} />;
   };
 
-  const categories = [
-    { key: 'all', label: 'Tümü' },
-    { key: 'personal', label: 'Kişisel' },
-    { key: 'work', label: 'İş' },
-    { key: 'social', label: 'Sosyal' },
-    { key: 'finance', label: 'Finans' },
-    { key: 'other', label: 'Diğer' },
-  ];
+  const filterCategories = [{ key: 'all', label: 'Tümü' }, ...categories];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -351,7 +404,7 @@ export default function HomeScreen() {
       {/* Categories Filter */}
       <View style={styles.categoriesContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
-          {categories.map((cat) => (
+          {filterCategories.map((cat) => (
             <TouchableOpacity
               key={cat.key}
               style={[
@@ -369,6 +422,15 @@ export default function HomeScreen() {
               </ThemedText>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[styles.categoryBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary, borderWidth: 1 }]}
+            onPress={() => {
+              setNewCategorySource('filter');
+              setNewCategoryModalVisible(true);
+            }}
+          >
+            <ThemedText style={{ color: colors.primary, fontWeight: 'bold' }}>+ Yeni</ThemedText>
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -580,21 +642,30 @@ export default function HomeScreen() {
               {/* Category selector */}
               <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Kategori</ThemedText>
               <View style={styles.typeSelectorRow}>
-                {['personal', 'work', 'social', 'finance', 'other'].map((cat) => (
+                {categories.map((cat) => (
                   <TouchableOpacity
-                    key={cat}
+                    key={cat.key}
                     style={[
                       styles.typeBadge,
                       { backgroundColor: colors.backgroundElement },
-                      formCategory === cat && [styles.typeBadgeActive, { backgroundColor: colors.primary }]
+                      formCategory === cat.key && [styles.typeBadgeActive, { backgroundColor: colors.primary }]
                     ]}
-                    onPress={() => setFormCategory(cat as any)}
+                    onPress={() => setFormCategory(cat.key)}
                   >
-                    <ThemedText style={formCategory === cat ? styles.activeCategoryText : { color: colors.textSecondary }}>
-                      {cat === 'personal' ? 'Kişisel' : cat === 'work' ? 'İş' : cat === 'social' ? 'Sosyal' : cat === 'finance' ? 'Finans' : 'Diğer'}
+                    <ThemedText style={formCategory === cat.key ? styles.activeCategoryText : { color: colors.textSecondary }}>
+                      {cat.label}
                     </ThemedText>
                   </TouchableOpacity>
                 ))}
+                <TouchableOpacity
+                  style={[styles.typeBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary, borderWidth: 1 }]}
+                  onPress={() => {
+                    setNewCategorySource('form');
+                    setNewCategoryModalVisible(true);
+                  }}
+                >
+                  <ThemedText style={{ color: colors.primary, fontWeight: 'bold' }}>+ Yeni Ekle</ThemedText>
+                </TouchableOpacity>
               </View>
 
               {/* Notes */}
@@ -654,14 +725,15 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.moveList}>
-              {[
-                { key: 'personal', label: 'Kişisel', icon: <Key size={18} color={colors.textSecondary} /> },
-                { key: 'work', label: 'İş', icon: <FileText size={18} color={colors.textSecondary} /> },
-                { key: 'social', label: 'Sosyal', icon: <Globe size={18} color={colors.primary} /> },
-                { key: 'finance', label: 'Finans', icon: <Lock size={18} color={colors.success} /> },
-                { key: 'other', label: 'Diğer', icon: <FolderOpen size={18} color={colors.textSecondary} /> },
-              ].map((item) => {
+              {categories.map((item) => {
                 const isCurrent = selectedEntryForMove?.category === item.key;
+                
+                let icon = <FolderOpen size={18} color={colors.textSecondary} />;
+                if (item.key === 'personal') icon = <Key size={18} color={colors.textSecondary} />;
+                else if (item.key === 'work') icon = <FileText size={18} color={colors.textSecondary} />;
+                else if (item.key === 'social') icon = <Globe size={18} color={colors.primary} />;
+                else if (item.key === 'finance') icon = <Lock size={18} color={colors.success} />;
+
                 return (
                   <TouchableOpacity
                     key={item.key}
@@ -674,7 +746,7 @@ export default function HomeScreen() {
                   >
                     <View style={styles.moveItemLeft}>
                       <View style={[styles.moveIconWrapper, { backgroundColor: colors.backgroundSelected }]}>
-                        {item.icon}
+                        {icon}
                       </View>
                       <ThemedText style={[styles.moveLabel, isCurrent && { color: colors.primary, fontWeight: 'bold' }]}>
                         {item.label}
@@ -688,6 +760,66 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 );
               })}
+
+              <TouchableOpacity
+                style={[styles.moveItem, { borderColor: colors.primary, borderStyle: 'dashed', backgroundColor: colors.primary + '05' }]}
+                onPress={() => {
+                  setNewCategorySource('move');
+                  setNewCategoryModalVisible(true);
+                }}
+              >
+                <View style={styles.moveItemLeft}>
+                  <View style={[styles.moveIconWrapper, { backgroundColor: colors.primary + '15' }]}>
+                    <Plus size={18} color={colors.primary} />
+                  </View>
+                  <ThemedText style={[styles.moveLabel, { color: colors.primary, fontWeight: 'bold' }]}>
+                    Yeni Kategori Ekle
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+        </View>
+      </Modal>
+
+      {/* Add Custom Category Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={newCategoryModalVisible}
+        onRequestClose={() => {
+          setNewCategoryModalVisible(false);
+          setNewCategorySource(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <ThemedView type="backgroundElement" style={styles.alertContent}>
+            <ThemedText style={styles.alertTitle}>Yeni Kategori Ekle</ThemedText>
+            <TextInput
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              placeholder="Kategori Adı (Örn: E-Devlet, Oyun)"
+              placeholderTextColor={colors.textSecondary}
+              autoFocus={true}
+              style={[styles.alertInput, { color: colors.text, borderColor: colors.border }]}
+            />
+            <View style={styles.alertButtonsRow}>
+              <TouchableOpacity 
+                style={[styles.alertButton, { borderColor: colors.border, borderWidth: 1 }]} 
+                onPress={() => {
+                  setNewCategoryName('');
+                  setNewCategoryModalVisible(false);
+                  setNewCategorySource(null);
+                }}
+              >
+                <ThemedText style={{ color: colors.textSecondary }}>İptal</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.alertButton, { backgroundColor: colors.primary }]} 
+                onPress={handleAddNewCategory}
+              >
+                <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Ekle</ThemedText>
+              </TouchableOpacity>
             </View>
           </ThemedView>
         </View>
@@ -1001,5 +1133,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+  },
+  alertContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  alertInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  alertButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  alertButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
