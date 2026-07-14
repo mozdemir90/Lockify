@@ -11,7 +11,8 @@ import {
   Platform,
   Clipboard,
   Share,
-  Text
+  Text,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
@@ -183,9 +184,15 @@ export default function HomeScreen() {
   // Handle Form Save
   const handleSave = async () => {
     if (!formName.trim() || !formIdentifier.trim() || !formPassword) {
-      Alert.alert('Hata', 'Lütfen en azından Başlık, Kimlik ve Şifre alanlarını doldurun.');
+      if (Platform.OS === 'web') {
+        alert('Hata: Lütfen en azından Başlık, Kimlik ve Şifre alanlarını doldurun.');
+      } else {
+        Alert.alert('Hata', 'Lütfen en azından Başlık, Kimlik ve Şifre alanlarını doldurun.');
+      }
       return;
     }
+
+    const isEditing = !!editingEntry;
 
     try {
       let updatedEntries = [...entries];
@@ -227,8 +234,20 @@ export default function HomeScreen() {
       await saveVaultEntries(updatedEntries);
       setEntries(updatedEntries);
       setModalVisible(false);
-    } catch (e) {
-      Alert.alert('Hata', 'Şifre kaydedilemedi.');
+
+      // Show success message
+      const successMsg = isEditing ? 'Kayıt başarıyla güncellendi.' : 'Yeni kayıt başarıyla eklendi.';
+      if (Platform.OS === 'web') {
+        alert(successMsg);
+      } else {
+        Alert.alert('Başarılı', successMsg);
+      }
+    } catch (e: any) {
+      if (Platform.OS === 'web') {
+        alert('Hata: Şifre kaydedilemedi. ' + e.message);
+      } else {
+        Alert.alert('Hata', 'Şifre kaydedilemedi: ' + e.message);
+      }
     }
   };
 
@@ -236,27 +255,46 @@ export default function HomeScreen() {
   const handleDelete = () => {
     if (!editingEntry) return;
 
-    Alert.alert(
-      'Silme İşlemi',
-      `"${editingEntry.name}" kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
-      [
-        { text: 'İptal', style: 'cancel' },
-        { 
-          text: 'Sil', 
-          style: 'destructive', 
-          onPress: async () => {
-            try {
-              const updated = entries.filter(e => e.id !== editingEntry.id);
-              await saveVaultEntries(updated);
-              setEntries(updated);
-              setModalVisible(false);
-            } catch (err) {
-              Alert.alert('Hata', 'Kayıt silinemedi.');
-            }
-          }
+    const performDelete = async () => {
+      try {
+        const updated = entries.filter(e => e.id !== editingEntry.id);
+        await saveVaultEntries(updated);
+        setEntries(updated);
+        setModalVisible(false);
+        
+        if (Platform.OS === 'web') {
+          alert('Kayıt başarıyla silindi.');
+        } else {
+          Alert.alert('Başarılı', 'Kayıt başarıyla silindi.');
         }
-      ]
-    );
+      } catch (err: any) {
+        if (Platform.OS === 'web') {
+          alert('Kayıt silinemedi: ' + err.message);
+        } else {
+          Alert.alert('Hata', 'Kayıt silinemedi: ' + err.message);
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm(`"${editingEntry.name}" kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`);
+      if (confirmDelete) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'Silme İşlemi',
+        `"${editingEntry.name}" kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+        [
+          { text: 'İptal', style: 'cancel' },
+          { 
+            text: 'Sil', 
+            style: 'destructive', 
+            onPress: performDelete
+          }
+        ]
+      );
+    }
   };
 
   // Get matching icon for credential
@@ -386,7 +424,17 @@ export default function HomeScreen() {
 
                 {item.link ? (
                   <TouchableOpacity style={styles.cardActionBtn} onPress={() => {
-                    Alert.alert('Web sitesi', item.link);
+                    let url = item.link.trim();
+                    if (!/^https?:\/\//i.test(url)) {
+                      url = 'https://' + url;
+                    }
+                    Linking.openURL(url).catch(() => {
+                      if (Platform.OS === 'web') {
+                        alert('Bağlantı açılamadı.');
+                      } else {
+                        Alert.alert('Hata', 'Bağlantı açılamadı.');
+                      }
+                    });
                   }}>
                     <ExternalLink size={18} color={colors.primary} />
                   </TouchableOpacity>
