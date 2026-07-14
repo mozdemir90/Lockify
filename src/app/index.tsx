@@ -78,6 +78,9 @@ export default function HomeScreen() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategorySource, setNewCategorySource] = useState<'filter' | 'form' | 'move' | null>(null);
 
+  // Quick Add states
+  const [quickAddName, setQuickAddName] = useState('');
+
   // Load vault entries
   const loadVault = async () => {
     try {
@@ -202,6 +205,23 @@ export default function HomeScreen() {
     
     if (Platform.OS === 'web') alert('Kategori başarıyla eklendi.');
     else Alert.alert('Başarılı', 'Kategori başarıyla eklendi.');
+  };
+
+  // Handle Quick Add submit
+  const handleQuickAddSubmit = () => {
+    const name = quickAddName.trim();
+    setQuickAddName('');
+    
+    setEditingEntry(null);
+    setFormName(name);
+    setFormType('email');
+    setFormIdentifier('');
+    setFormPassword('');
+    setFormLink('');
+    setFormNotes('');
+    setFormCategory('personal');
+    setShowFormPassword(false);
+    setModalVisible(true);
   };
 
   // Open modal for add
@@ -355,16 +375,38 @@ export default function HomeScreen() {
     }
   };
 
+  // Category metadata helper for distinct colors and icons
+  const getCategoryMeta = (cat: string) => {
+    switch (cat) {
+      case 'personal':
+        return { iconName: 'personal', color: '#8B5CF6', label: 'Kişisel' }; // Violet
+      case 'work':
+        return { iconName: 'work', color: '#F59E0B', label: 'İş' }; // Amber
+      case 'social':
+        return { iconName: 'social', color: '#3B82F6', label: 'Sosyal' }; // Blue
+      case 'finance':
+        return { iconName: 'finance', color: '#10B981', label: 'Finans' }; // Emerald
+      case 'other':
+        return { iconName: 'other', color: '#6B7280', label: 'Diğer' }; // Gray
+      default:
+        const colors = ['#EC4899', '#06B6D4', '#14B8A6', '#F43F5E', '#A855F7', '#E11D48'];
+        let hash = 0;
+        for (let i = 0; i < cat.length; i++) {
+          hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const colorIndex = Math.abs(hash) % colors.length;
+        return { iconName: 'custom', color: colors[colorIndex], label: cat };
+    }
+  };
+
   // Get matching icon for credential
   const getIcon = (category: string, type: string) => {
-    if (category === 'social') return <Globe size={20} color={colors.primary} />;
-    if (category === 'finance') return <Lock size={20} color={colors.success} />;
-    if (category === 'personal') return <Key size={20} color={colors.textSecondary} />;
-    if (category === 'work') return <FileText size={20} color={colors.textSecondary} />;
-    
-    if (type === 'email') return <Mail size={20} color={colors.textSecondary} />;
-    if (type === 'phone') return <Smartphone size={20} color={colors.textSecondary} />;
-    return <FolderOpen size={20} color={colors.textSecondary} />;
+    const meta = getCategoryMeta(category);
+    if (meta.iconName === 'personal') return <Key size={20} color={meta.color} />;
+    if (meta.iconName === 'work') return <FileText size={20} color={meta.color} />;
+    if (meta.iconName === 'social') return <Globe size={20} color={meta.color} />;
+    if (meta.iconName === 'finance') return <Lock size={20} color={meta.color} />;
+    return <FolderOpen size={20} color={meta.color} />;
   };
 
   const filterCategories = [{ key: 'all', label: 'Tümü' }, ...categories];
@@ -386,6 +428,24 @@ export default function HomeScreen() {
         </View>
         <TouchableOpacity style={[styles.lockButton, { backgroundColor: colors.backgroundElement }]} onPress={lock}>
           <Lock size={18} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick Add Bar */}
+      <View style={[styles.quickAddWrapper, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '20' }]}>
+        <TextInput
+          value={quickAddName}
+          onChangeText={setQuickAddName}
+          placeholder="Hızlı Şifre Kaydet (Örn: Netflix)"
+          placeholderTextColor={colors.textSecondary}
+          style={[styles.quickAddInput, { color: colors.text }]}
+          onSubmitEditing={handleQuickAddSubmit}
+        />
+        <TouchableOpacity 
+          style={[styles.quickAddBtn, { backgroundColor: colors.primary }]} 
+          onPress={handleQuickAddSubmit}
+        >
+          <Plus size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -414,12 +474,24 @@ export default function HomeScreen() {
               ]}
               onPress={() => setSelectedCategory(cat.key)}
             >
-              <ThemedText style={[
-                styles.categoryText,
-                selectedCategory === cat.key && styles.activeCategoryText
-              ]}>
-                {cat.label}
-              </ThemedText>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {cat.key !== 'all' && (
+                  <View 
+                    style={[
+                      styles.colorDot, 
+                      { 
+                        backgroundColor: selectedCategory === cat.key ? '#fff' : getCategoryMeta(cat.key).color 
+                      }
+                    ]} 
+                  />
+                )}
+                <ThemedText style={[
+                  styles.categoryText,
+                  selectedCategory === cat.key && styles.activeCategoryText
+                ]}>
+                  {cat.label}
+                </ThemedText>
+              </View>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
@@ -467,7 +539,7 @@ export default function HomeScreen() {
               delayLongPress={300}
             >
               <View style={styles.cardLeft}>
-                <View style={[styles.cardIconWrapper, { backgroundColor: colors.backgroundSelected }]}>
+                <View style={[styles.cardIconWrapper, { backgroundColor: getCategoryMeta(item.category).color + '15' }]}>
                   {getIcon(item.category, item.type)}
                 </View>
                 <View style={styles.cardTexts}>
@@ -642,21 +714,25 @@ export default function HomeScreen() {
               {/* Category selector */}
               <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Kategori</ThemedText>
               <View style={styles.typeSelectorRow}>
-                {categories.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[
-                      styles.typeBadge,
-                      { backgroundColor: colors.backgroundElement },
-                      formCategory === cat.key && [styles.typeBadgeActive, { backgroundColor: colors.primary }]
-                    ]}
-                    onPress={() => setFormCategory(cat.key)}
-                  >
-                    <ThemedText style={formCategory === cat.key ? styles.activeCategoryText : { color: colors.textSecondary }}>
-                      {cat.label}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                {categories.map((cat) => {
+                  const meta = getCategoryMeta(cat.key);
+                  const isSelected = formCategory === cat.key;
+                  return (
+                    <TouchableOpacity
+                      key={cat.key}
+                      style={[
+                        styles.typeBadge,
+                        { backgroundColor: colors.backgroundElement },
+                        isSelected && [styles.typeBadgeActive, { backgroundColor: meta.color }]
+                      ]}
+                      onPress={() => setFormCategory(cat.key)}
+                    >
+                      <ThemedText style={isSelected ? styles.activeCategoryText : { color: colors.textSecondary }}>
+                        {cat.label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
                 <TouchableOpacity
                   style={[styles.typeBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary, borderWidth: 1 }]}
                   onPress={() => {
@@ -1169,5 +1245,34 @@ const styles = StyleSheet.create({
     minWidth: 80,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  quickAddWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  quickAddInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  quickAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
   },
 });
