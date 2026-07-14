@@ -68,6 +68,10 @@ export default function HomeScreen() {
   const [formCategory, setFormCategory] = useState<'social' | 'work' | 'finance' | 'personal' | 'other'>('personal');
   const [showFormPassword, setShowFormPassword] = useState(false);
 
+  // Move Category states
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [selectedEntryForMove, setSelectedEntryForMove] = useState<DecryptedCredentialEntry | null>(null);
+
   // Load vault entries
   const loadVault = async () => {
     try {
@@ -113,6 +117,31 @@ export default function HomeScreen() {
       });
     } catch (error) {
       console.error('Sharing failed:', error);
+    }
+  };
+
+  // Handle moving category
+  const handleMoveCategory = async (cat: 'social' | 'work' | 'finance' | 'personal' | 'other') => {
+    if (!selectedEntryForMove) return;
+
+    try {
+      const updatedEntries = entries.map(entry => {
+        if (entry.id === selectedEntryForMove.id) {
+          return {
+            ...entry,
+            category: cat,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return entry;
+      });
+
+      await saveVaultEntries(updatedEntries);
+      setEntries(updatedEntries);
+      setMoveModalVisible(false);
+      setSelectedEntryForMove(null);
+    } catch (err) {
+      Alert.alert('Hata', 'Kategori değiştirilemedi.');
     }
   };
 
@@ -305,6 +334,15 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
+      {/* Hint Row */}
+      {filteredEntries.length > 0 && (
+        <View style={styles.hintContainer}>
+          <ThemedText type="small" style={{ color: colors.textSecondary, textAlign: 'center', fontStyle: 'italic' }}>
+            💡 Kategorisini hızlıca değiştirmek için şifre kartına basılı tutun.
+          </ThemedText>
+        </View>
+      )}
+
       {/* Vault Items List */}
       {filteredEntries.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -322,6 +360,11 @@ export default function HomeScreen() {
             <TouchableOpacity 
               style={[styles.itemCard, { backgroundColor: colors.backgroundElement, borderColor: colors.border }]}
               onPress={() => handleEditPress(item)}
+              onLongPress={() => {
+                setSelectedEntryForMove(item);
+                setMoveModalVisible(true);
+              }}
+              delayLongPress={300}
             >
               <View style={styles.cardLeft}>
                 <View style={[styles.cardIconWrapper, { backgroundColor: colors.backgroundSelected }]}>
@@ -535,6 +578,69 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               ) : null}
             </ScrollView>
+          </ThemedView>
+        </View>
+      </Modal>
+
+      {/* Category Move Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={moveModalVisible}
+        onRequestClose={() => setMoveModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <ThemedView type="background" style={[styles.modalContent, styles.moveModalContent, { borderTopColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <ThemedText type="subtitle" style={styles.modalTitle}>Kategoriye Taşı</ThemedText>
+                {selectedEntryForMove && (
+                  <ThemedText type="small" style={{ color: colors.textSecondary, marginTop: 2 }}>
+                    "{selectedEntryForMove.name}" hesabını taşımak istediğiniz kategoriyi seçin.
+                  </ThemedText>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setMoveModalVisible(false)}>
+                <ThemedText style={{ color: colors.textSecondary, fontWeight: 'bold' }}>Kapat</ThemedText>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.moveList}>
+              {[
+                { key: 'personal', label: 'Kişisel', icon: <Key size={18} color={colors.textSecondary} /> },
+                { key: 'work', label: 'İş', icon: <FileText size={18} color={colors.textSecondary} /> },
+                { key: 'social', label: 'Sosyal', icon: <Globe size={18} color={colors.primary} /> },
+                { key: 'finance', label: 'Finans', icon: <Lock size={18} color={colors.success} /> },
+                { key: 'other', label: 'Diğer', icon: <FolderOpen size={18} color={colors.textSecondary} /> },
+              ].map((item) => {
+                const isCurrent = selectedEntryForMove?.category === item.key;
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.moveItem,
+                      { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                      isCurrent && { borderColor: colors.primary, borderWidth: 1.5 }
+                    ]}
+                    onPress={() => handleMoveCategory(item.key as any)}
+                  >
+                    <View style={styles.moveItemLeft}>
+                      <View style={[styles.moveIconWrapper, { backgroundColor: colors.backgroundSelected }]}>
+                        {item.icon}
+                      </View>
+                      <ThemedText style={[styles.moveLabel, isCurrent && { color: colors.primary, fontWeight: 'bold' }]}>
+                        {item.label}
+                      </ThemedText>
+                    </View>
+                    {isCurrent && (
+                      <View style={[styles.currentBadge, { backgroundColor: colors.primary + '15' }]}>
+                        <ThemedText type="small" style={{ color: colors.primary, fontWeight: 'bold' }}>Mevcut</ThemedText>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </ThemedView>
         </View>
       </Modal>
@@ -803,5 +909,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+  },
+  hintContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moveModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+  },
+  moveList: {
+    paddingHorizontal: 20,
+    marginTop: 16,
+    gap: 10,
+  },
+  moveItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  moveItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  moveIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moveLabel: {
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  currentBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
 });
