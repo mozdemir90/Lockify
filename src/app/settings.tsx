@@ -19,6 +19,7 @@ import { useColorScheme } from 'react-native';
 import * as ClipboardExpo from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as XLSX from 'xlsx';
 import { 
   Fingerprint, 
   Lock, 
@@ -97,7 +98,13 @@ export default function SettingsScreen() {
   const handleCSVImport = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/comma-separated-values', 'text/csv'],
+        type: [
+          'text/comma-separated-values',
+          'text/csv',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'application/octet-stream' // fallback for Android file pickers
+        ],
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -105,35 +112,66 @@ export default function SettingsScreen() {
       }
 
       const fileUri = result.assets[0].uri;
-      let csvText = '';
+      const fileName = result.assets[0].name.toLowerCase();
+      const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
 
-      if (Platform.OS === 'web') {
-        const response = await fetch(fileUri);
-        csvText = await response.text();
+      let rows: any[][] = [];
+
+      if (isExcel) {
+        let workbook;
+        if (Platform.OS === 'web') {
+          const response = await fetch(fileUri);
+          const arrayBuffer = await response.arrayBuffer();
+          const data = new Uint8Array(arrayBuffer);
+          workbook = XLSX.read(data, { type: 'array' });
+        } else {
+          const base64 = await FileSystem.readAsStringAsync(fileUri, { 
+            encoding: FileSystem.EncodingType.Base64 
+          });
+          workbook = XLSX.read(base64, { type: 'base64' });
+        }
+
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
       } else {
-        csvText = await FileSystem.readAsStringAsync(fileUri);
+        let csvText = '';
+        if (Platform.OS === 'web') {
+          const response = await fetch(fileUri);
+          csvText = await response.text();
+        } else {
+          csvText = await FileSystem.readAsStringAsync(fileUri);
+        }
+
+        if (!csvText) {
+          Alert.alert('Hata', 'Dosya okunamadı veya dosya boş.');
+          return;
+        }
+
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          Alert.alert('Hata', 'CSV dosyasında veri bulunamadı.');
+          return;
+        }
+
+        // Detect separator: Semicolon (Excel default in TR) or Comma
+        const headerLine = lines[0];
+        const semicolonCount = (headerLine.match(/;/g) || []).length;
+        const commaCount = (headerLine.match(/,/g) || []).length;
+        const separator = semicolonCount > commaCount ? ';' : ',';
+
+        rows = lines.map(row => 
+          row.split(separator).map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/['"]/g, ''))
+        );
       }
 
-      if (!csvText) {
-        Alert.alert('Hata', 'Dosya okunamadı veya dosya boş.');
+      if (rows.length < 2) {
+        Alert.alert('Hata', 'Dosyada başlık satırı ve veri bulunamadı.');
         return;
       }
-
-      // Parse CSV
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-      if (lines.length < 2) {
-        Alert.alert('Hata', 'CSV dosyasında veri bulunamadı (en az bir başlık satırı ve bir veri satırı gereklidir).');
-        return;
-      }
-
-      // Detect separator: Semicolon (Excel default in TR) or Comma
-      const headerLine = lines[0];
-      const semicolonCount = (headerLine.match(/;/g) || []).length;
-      const commaCount = (headerLine.match(/,/g) || []).length;
-      const separator = semicolonCount > commaCount ? ';' : ',';
 
       // Parse headers
-      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      const headers = rows[0].map(h => (h ? String(h).trim().toLowerCase().replace(/['"]/g, '') : ''));
       
       // Determine columns mapping
       let nameIndex = headers.findIndex(h => h.includes('name') || h.includes('title') || h.includes('ad') || h.includes('başlık') || h.includes('hesap'));
@@ -153,21 +191,18 @@ export default function SettingsScreen() {
 
       const newCredentials: DecryptedCredentialEntry[] = [];
 
-      for (let i = 1; i < lines.length; i++) {
-        const row = lines[i];
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i];
         
-        // Split cell by separator
-        const cells = row.split(separator).map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/['"]/g, ''));
-        
-        if (cells.length < 2 || (!cells[nameIndex] && !cells[identifierIndex])) {
+        if (!cells || cells.length < 2 || (!cells[nameIndex] && !cells[identifierIndex])) {
           continue; // Skip invalid empty rows
         }
 
-        const name = cells[nameIndex] || 'Bilinmeyen Hesap';
-        const identifier = cells[identifierIndex] || '';
-        const passwordDecrypted = cells[passwordIndex] || '';
-        const link = cells[linkIndex] || '';
-        const notesDecrypted = cells[notesIndex] || '';
+        const name = cells[nameIndex] ? String(cells[nameIndex]).trim() : 'Bilinmeyen Hesap';
+        const identifier = cells[identifierIndex] ? String(cells[identifierIndex]).trim() : '';
+        const passwordDecrypted = cells[passwordIndex] ? String(cells[passwordIndex]).trim() : '';
+        const link = cells[linkIndex] ? String(cells[linkIndex]).trim() : '';
+        const notesDecrypted = cells[notesIndex] ? String(cells[notesIndex]).trim() : '';
         
         // Determine identifier type (email, phone, or username)
         let type: 'email' | 'phone' | 'username' = 'username';
@@ -179,7 +214,7 @@ export default function SettingsScreen() {
 
         // Determine category
         let category: 'personal' | 'work' | 'social' | 'finance' | 'other' = 'personal';
-        const rawCat = (cells[categoryIndex] || '').toLowerCase();
+        const rawCat = (cells[categoryIndex] ? String(cells[categoryIndex]) : '').toLowerCase();
         if (rawCat.includes('social') || rawCat.includes('sosyal')) category = 'social';
         else if (rawCat.includes('work') || rawCat.includes('iş')) category = 'work';
         else if (rawCat.includes('finance') || rawCat.includes('finans')) category = 'finance';
