@@ -173,16 +173,21 @@ export default function SettingsScreen() {
         return;
       }
 
-      // Parse headers
-      const headers = rows[0].map(h => (h ? String(h).trim().toLowerCase().replace(/['"]/g, '') : ''));
+      // Parse headers using Array.from to prevent sparse array empty slots
+      const headers = Array.from(rows[0] || []).map(h => (h ? String(h).trim().toLowerCase().replace(/['"]/g, '') : ''));
       
-      // Determine columns mapping
-      let nameIndex = headers.findIndex(h => h.includes('name') || h.includes('title') || h.includes('ad') || h.includes('başlık') || h.includes('hesap'));
-      let identifierIndex = headers.findIndex(h => h.includes('identifier') || h.includes('username') || h.includes('email') || h.includes('kullanıcı') || h.includes('mail') || h.includes('kimlik'));
-      let passwordIndex = headers.findIndex(h => h.includes('password') || h.includes('pass') || h.includes('şifre') || h.includes('parola'));
-      let linkIndex = headers.findIndex(h => h.includes('link') || h.includes('url') || h.includes('bağlantı') || h.includes('web'));
-      let notesIndex = headers.findIndex(h => h.includes('notes') || h.includes('note') || h.includes('not'));
-      let categoryIndex = headers.findIndex(h => h.includes('category') || h.includes('kategori'));
+      // Determine columns mapping safely checking if element is defined
+      const matchesHeader = (h: string | undefined, keywords: string[]) => {
+        if (!h) return false;
+        return keywords.some(keyword => h.includes(keyword));
+      };
+
+      let nameIndex = headers.findIndex(h => matchesHeader(h, ['name', 'title', 'ad', 'başlık', 'hesap']));
+      let identifierIndex = headers.findIndex(h => matchesHeader(h, ['identifier', 'username', 'email', 'kullanıcı', 'mail', 'kimlik', 'e-posta']));
+      let passwordIndex = headers.findIndex(h => matchesHeader(h, ['password', 'pass', 'şifre', 'parola']));
+      let linkIndex = headers.findIndex(h => matchesHeader(h, ['link', 'url', 'bağlantı', 'web']));
+      let notesIndex = headers.findIndex(h => matchesHeader(h, ['notes', 'note', 'not']));
+      let categoryIndex = headers.findIndex(h => matchesHeader(h, ['category', 'kategori']));
 
       // Fallbacks if headers not detected
       if (nameIndex === -1) nameIndex = 0;
