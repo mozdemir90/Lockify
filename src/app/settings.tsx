@@ -68,18 +68,21 @@ export default function SettingsScreen() {
   const handleBiometricsToggle = async (value: boolean) => {
     if (value) {
       if (!biometricsAvailable) {
-        Alert.alert('Desteklenmiyor', 'Cihazınızda biyometrik doğrulama aktif değil veya desteklenmiyor.');
+        Alert.alert(
+          'Biyometri Desteklenmiyor', 
+          'Cihazınızda biyometrik doğrulama (Parmak izi / Face ID) aktif değil veya bu cihaz tarafından desteklenmiyor.\n\nÇözüm: Telefonunuzun sistem ayarlarına giderek parmak izinizi veya yüzünüzü sisteme tanımladığınızdan emin olun.'
+        );
         return;
       }
       try {
         await enableBiometrics();
-        Alert.alert('Başarılı', 'Parmak izi / Face ID kilidi aktif edildi.');
-      } catch (e) {
-        Alert.alert('Hata', 'Biyometrik kilit ayarlanamadı.');
+        Alert.alert('Başarılı', 'Parmak izi / Face ID kilidi başarıyla aktif edildi.');
+      } catch (e: any) {
+        Alert.alert('Hata', 'Biyometrik kilit ayarlanamadı: ' + e.message);
       }
     } else {
       await disableSecurityLocks();
-      Alert.alert('Bilgi', 'Güvenlik kilitleri devre dışı bırakıldı.');
+      Alert.alert('Bilgi', 'Güvenlik kilidi (PIN ve Biyometrik) başarıyla devre dışı bırakıldı.');
     }
   };
 
@@ -251,7 +254,25 @@ export default function SettingsScreen() {
       );
     } catch (error: any) {
       console.error('Import error:', error);
-      Alert.alert('Hata', 'Dosya yükleme veya okuma sırasında hata oluştu: ' + error.message);
+      const errMsg = String(error.message || '').toLowerCase();
+      
+      if (
+        errMsg.includes('unsupported encryption') || 
+        errMsg.includes('password') || 
+        errMsg.includes('decrypt') || 
+        errMsg.includes('encrypted') || 
+        errMsg.includes('password-protected')
+      ) {
+        Alert.alert(
+          'Şifreli Dosya Hatası',
+          'Seçtiğiniz Excel dosyası şifre korumalıdır. Güvenlik ve teknik kısıtlamalar nedeniyle parola korumalı Excel dosyaları doğrudan içe aktarılamaz.\n\nÇözüm: Dosyayı Excel veya Google Sheets ile açıp şifresiz (parolasız) bir kopya olarak kaydedin ve o kopyayı yükleyin.'
+        );
+      } else {
+        Alert.alert(
+          'Dosya Okuma Hatası',
+          'Dosya formatı çözülemedi veya dosya bozuk olabilir. Lütfen geçerli, şifresiz bir Excel (.xlsx) veya CSV dosyası seçtiğinizden emin olun.'
+        );
+      }
     }
   };
 
