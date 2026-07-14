@@ -17,6 +17,8 @@ import { ThemedView } from '../components/themed-view';
 import { Colors } from '../constants/theme';
 import { useColorScheme } from 'react-native';
 import * as ClipboardExpo from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { 
   Fingerprint, 
   Lock, 
@@ -26,9 +28,11 @@ import {
   Copy, 
   RefreshCw,
   Sliders,
-  Check
+  Check,
+  FileText
 } from 'lucide-react-native';
 import { generatePassword } from '../services/crypto';
+import { getVaultEntries, saveVaultEntries, DecryptedCredentialEntry } from '../services/db';
 
 export default function SettingsScreen() {
   const scheme = useColorScheme();
@@ -86,6 +90,133 @@ export default function SettingsScreen() {
     } else {
       await disableSecurityLocks();
       Alert.alert('Bilgi', 'PIN kilidi devre dışı bırakıldı.');
+    }
+  };
+
+  // Handle CSV/Excel Import
+  const handleCSVImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/comma-separated-values', 'text/csv'],
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const fileUri = result.assets[0].uri;
+      let csvText = '';
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(fileUri);
+        csvText = await response.text();
+      } else {
+        csvText = await FileSystem.readAsStringAsync(fileUri);
+      }
+
+      if (!csvText) {
+        Alert.alert('Hata', 'Dosya okunamadı veya dosya boş.');
+        return;
+      }
+
+      // Parse CSV
+      const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+      if (lines.length < 2) {
+        Alert.alert('Hata', 'CSV dosyasında veri bulunamadı (en az bir başlık satırı ve bir veri satırı gereklidir).');
+        return;
+      }
+
+      // Detect separator: Semicolon (Excel default in TR) or Comma
+      const headerLine = lines[0];
+      const semicolonCount = (headerLine.match(/;/g) || []).length;
+      const commaCount = (headerLine.match(/,/g) || []).length;
+      const separator = semicolonCount > commaCount ? ';' : ',';
+
+      // Parse headers
+      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      
+      // Determine columns mapping
+      let nameIndex = headers.findIndex(h => h.includes('name') || h.includes('title') || h.includes('ad') || h.includes('başlık') || h.includes('hesap'));
+      let identifierIndex = headers.findIndex(h => h.includes('identifier') || h.includes('username') || h.includes('email') || h.includes('kullanıcı') || h.includes('mail') || h.includes('kimlik'));
+      let passwordIndex = headers.findIndex(h => h.includes('password') || h.includes('pass') || h.includes('şifre') || h.includes('parola'));
+      let linkIndex = headers.findIndex(h => h.includes('link') || h.includes('url') || h.includes('bağlantı') || h.includes('web'));
+      let notesIndex = headers.findIndex(h => h.includes('notes') || h.includes('note') || h.includes('not'));
+      let categoryIndex = headers.findIndex(h => h.includes('category') || h.includes('kategori'));
+
+      // Fallbacks if headers not detected
+      if (nameIndex === -1) nameIndex = 0;
+      if (identifierIndex === -1) identifierIndex = 1;
+      if (passwordIndex === -1) passwordIndex = 2;
+      if (linkIndex === -1) linkIndex = 3;
+      if (notesIndex === -1) notesIndex = 4;
+      if (categoryIndex === -1) categoryIndex = 5;
+
+      const newCredentials: DecryptedCredentialEntry[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i];
+        
+        // Split cell by separator
+        const cells = row.split(separator).map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/['"]/g, ''));
+        
+        if (cells.length < 2 || (!cells[nameIndex] && !cells[identifierIndex])) {
+          continue; // Skip invalid empty rows
+        }
+
+        const name = cells[nameIndex] || 'Bilinmeyen Hesap';
+        const identifier = cells[identifierIndex] || '';
+        const passwordDecrypted = cells[passwordIndex] || '';
+        const link = cells[linkIndex] || '';
+        const notesDecrypted = cells[notesIndex] || '';
+        
+        // Determine identifier type (email, phone, or username)
+        let type: 'email' | 'phone' | 'username' = 'username';
+        if (identifier.includes('@')) {
+          type = 'email';
+        } else if (/^\+?[0-9\s-]{7,15}$/.test(identifier)) {
+          type = 'phone';
+        }
+
+        // Determine category
+        let category: 'personal' | 'work' | 'social' | 'finance' | 'other' = 'personal';
+        const rawCat = (cells[categoryIndex] || '').toLowerCase();
+        if (rawCat.includes('social') || rawCat.includes('sosyal')) category = 'social';
+        else if (rawCat.includes('work') || rawCat.includes('iş')) category = 'work';
+        else if (rawCat.includes('finance') || rawCat.includes('finans')) category = 'finance';
+        else if (rawCat.includes('other') || rawCat.includes('diğer')) category = 'other';
+
+        newCredentials.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name,
+          type,
+          identifier,
+          passwordDecrypted,
+          link,
+          notesDecrypted,
+          category,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      if (newCredentials.length === 0) {
+        Alert.alert('Hata', 'Dosyadan geçerli şifre kaydı okunamadı. Lütfen başlık sütunlarını kontrol edin.');
+        return;
+      }
+
+      // Fetch existing vault and append
+      const existingEntries = await getVaultEntries();
+      const updatedEntries = [...newCredentials, ...existingEntries];
+      
+      await saveVaultEntries(updatedEntries);
+      
+      Alert.alert(
+        'Başarılı', 
+        `${newCredentials.length} adet şifre başarıyla içe aktarıldı! Değişiklikleri görmek için ana sayfanızı yenileyin.`,
+        [{ text: 'Tamam' }]
+      );
+    } catch (error: any) {
+      console.error('Import error:', error);
+      Alert.alert('Hata', 'Dosya yükleme veya okuma sırasında hata oluştu: ' + error.message);
     }
   };
 
@@ -245,6 +376,18 @@ export default function SettingsScreen() {
               <ThemedText type="small" style={{ marginLeft: 6 }}>Semboller</ThemedText>
             </TouchableOpacity>
           </View>
+        </ThemedView>
+
+        {/* Data Operations Card */}
+        <ThemedText type="smallBold" style={styles.sectionLabel}>Veri İşlemleri</ThemedText>
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <TouchableOpacity style={styles.rowItemBtn} onPress={handleCSVImport}>
+            <FileText size={18} color={colors.text} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <ThemedText style={{ fontWeight: 'bold' }}>Excel / CSV İçe Aktar</ThemedText>
+              <ThemedText type="small" style={{ color: colors.textSecondary }}>Şifrelerinizi toplu olarak aktarın</ThemedText>
+            </View>
+          </TouchableOpacity>
         </ThemedView>
 
         {/* Session Card */}

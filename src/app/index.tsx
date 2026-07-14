@@ -9,7 +9,9 @@ import {
   ScrollView, 
   Alert,
   Platform,
-  Clipboard
+  Clipboard,
+  Share,
+  Text
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
@@ -33,7 +35,8 @@ import {
   Mail, 
   FileText,
   Check,
-  FolderOpen
+  FolderOpen,
+  Share2
 } from 'lucide-react-native';
 import { 
   getVaultEntries, 
@@ -98,6 +101,19 @@ export default function HomeScreen() {
     setTimeout(() => {
       setCopiedId(null);
     }, 2000);
+  };
+
+  // Handle native share
+  const handleShare = async (entry: DecryptedCredentialEntry) => {
+    try {
+      const message = `Hesap Adı: ${entry.name}\nKimlik/Kullanıcı: ${entry.identifier}\nŞifre: ${entry.passwordDecrypted}${entry.link ? `\nLink: ${entry.link}` : ''}${entry.notesDecrypted ? `\nNot: ${entry.notesDecrypted}` : ''}`;
+      await Share.share({
+        message,
+        title: entry.name,
+      });
+    } catch (error) {
+      console.error('Sharing failed:', error);
+    }
   };
 
   // Open modal for add
@@ -237,12 +253,19 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <ThemedText type="subtitle" style={styles.headerTitle}>Kasa</ThemedText>
-          <ThemedText type="small" style={{ color: colors.textSecondary }}>{activeUser}</ThemedText>
+        <View style={styles.headerLeft}>
+          <View style={[styles.profileAvatar, { backgroundColor: colors.primary, borderColor: colors.border }]}>
+            <Text style={styles.profileAvatarText}>
+              {activeUser ? activeUser.charAt(0).toUpperCase() : 'U'}
+            </Text>
+          </View>
+          <View style={styles.headerTexts}>
+            <ThemedText type="smallBold" style={{ color: colors.textSecondary, lineHeight: 14 }}>Merhaba,</ThemedText>
+            <ThemedText style={styles.headerTitle}>{activeUser}</ThemedText>
+          </View>
         </View>
         <TouchableOpacity style={[styles.lockButton, { backgroundColor: colors.backgroundElement }]} onPress={lock}>
-          <Lock size={20} color={colors.text} />
+          <Lock size={18} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -311,6 +334,13 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.cardRight}>
+                <TouchableOpacity 
+                  style={styles.cardActionBtn} 
+                  onPress={() => handleShare(item)}
+                >
+                  <Share2 size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+
                 {item.link ? (
                   <TouchableOpacity style={styles.cardActionBtn} onPress={() => {
                     Alert.alert('Web sitesi', item.link);
@@ -524,8 +554,38 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  profileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  profileAvatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  headerTexts: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontWeight: 'bold',
+    fontSize: 14,
   },
   lockButton: {
     width: 40,
