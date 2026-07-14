@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
@@ -15,6 +16,14 @@ SplashScreen.preventAutoHideAsync();
 function AppContent() {
   const { appLoading, isLoggedIn, isLocked, isRegistered } = useSession();
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    if (!appLoading) {
+      SplashScreen.hideAsync().catch((err) => {
+        console.warn('Failed to hide splash screen:', err);
+      });
+    }
+  }, [appLoading]);
 
   if (appLoading) {
     return (
