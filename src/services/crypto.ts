@@ -1,6 +1,16 @@
 import CryptoJS from 'crypto-js';
 import * as Crypto from 'expo-crypto';
 
+// Polyfill global.crypto for CryptoJS to generate secure random values on native devices
+if (typeof global.crypto === 'undefined') {
+  global.crypto = {} as any;
+}
+if (!global.crypto.getRandomValues) {
+  global.crypto.getRandomValues = function (array: any) {
+    return Crypto.getRandomValues(array);
+  } as any;
+}
+
 
 /**
  * Derives a strong 256-bit encryption key from a master password and salt using PBKDF2.
