@@ -1,5 +1,14 @@
 import CryptoJS from 'crypto-js';
 import * as Crypto from 'expo-crypto';
+import { requireNativeModule } from 'expo-modules-core';
+
+// Safely resolve native ExpoCrypto module to avoid calling the JS wrapper and causing recursion
+let ExpoCrypto: any = null;
+try {
+  ExpoCrypto = requireNativeModule('ExpoCrypto');
+} catch (e) {
+  console.warn('ExpoCrypto native module not found');
+}
 
 // Polyfill global.crypto for CryptoJS to generate secure random values on native devices
 if (typeof global.crypto === 'undefined') {
@@ -10,9 +19,18 @@ if (!global.crypto.getRandomValues) {
     if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
       return window.crypto.getRandomValues(array);
     }
-    return Crypto.getRandomValues(array);
+    if (ExpoCrypto && typeof ExpoCrypto.getRandomValues === 'function') {
+      ExpoCrypto.getRandomValues(array);
+      return array;
+    }
+    // Safe fallback for other environments
+    for (let i = 0; i < array.length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+    return array;
   } as any;
 }
+
 
 
 /**
@@ -71,8 +89,12 @@ export function generateRandomSalt(): string {
   const randomBytes = new Uint8Array(16);
   if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
     window.crypto.getRandomValues(randomBytes);
+  } else if (ExpoCrypto && typeof ExpoCrypto.getRandomValues === 'function') {
+    ExpoCrypto.getRandomValues(randomBytes);
   } else {
-    Crypto.getRandomValues(randomBytes);
+    for (let i = 0; i < randomBytes.length; i++) {
+      randomBytes[i] = Math.floor(Math.random() * 256);
+    }
   }
   return Array.from(randomBytes)
     .map(b => b.toString(16).padStart(2, '0'))
