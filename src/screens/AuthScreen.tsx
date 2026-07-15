@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
+import { useLanguage } from '../context/LanguageContext';
+
 import { ThemedText } from '../components/themed-text';
 import { ThemedView } from '../components/themed-view';
 import { Colors } from '../constants/theme';
@@ -23,6 +25,7 @@ export const AuthScreen: React.FC = () => {
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   const { register, login, appLoading } = useSession();
+  const { t, locale } = useLanguage();
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -44,27 +47,27 @@ export const AuthScreen: React.FC = () => {
     console.log('handleSubmit triggered. Mode:', isLogin ? 'LOGIN' : 'REGISTER', 'Email:', email);
 
     if (!email.trim() || !password) {
-      const msg = 'Lütfen tüm alanları doldurun.';
+      const msg = t('auth_error_fill_fields');
       setErrorText(msg);
       console.log('Validation Error:', msg);
-      Alert.alert('Hata', msg);
+      Alert.alert(t('error'), msg);
       return;
     }
 
     if (!isLogin) {
       if (password !== confirmPassword) {
-        const msg = 'Şifreler uyuşmuyor.';
+        const msg = t('auth_error_mismatch');
         setErrorText(msg);
         console.log('Validation Error:', msg);
-        Alert.alert('Hata', msg);
+        Alert.alert(t('error'), msg);
         return;
       }
 
       if (password.length < 6) {
-        const msg = 'Master şifreniz en az 6 karakter olmalıdır.';
+        const msg = t('auth_error_min_length');
         setErrorText(msg);
         console.log('Validation Error:', msg);
-        Alert.alert('Hata', msg);
+        Alert.alert(t('error'), msg);
         return;
       }
     }
@@ -98,10 +101,10 @@ export const AuthScreen: React.FC = () => {
               <ShieldAlert size={48} color={colors.primary} />
             </View>
             <ThemedText type="subtitle" style={styles.title}>
-              VaultPass
+              {t('app_name')}
             </ThemedText>
             <ThemedText type="small" style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Gelişmiş şifre yöneticisi ile tüm şifreleriniz uçtan uca şifreli.
+              {t('app_description')}
             </ThemedText>
           </View>
 
@@ -112,7 +115,7 @@ export const AuthScreen: React.FC = () => {
               onPress={() => handleTabChange(true)}
             >
               <ThemedText style={isLogin ? styles.activeTabText : { color: colors.textSecondary }}>
-                Giriş Yap
+                {t('auth_login')}
               </ThemedText>
             </TouchableOpacity>
             <TouchableOpacity 
@@ -120,7 +123,7 @@ export const AuthScreen: React.FC = () => {
               onPress={() => handleTabChange(false)}
             >
               <ThemedText style={!isLogin ? styles.activeTabText : { color: colors.textSecondary }}>
-                Kayıt Ol
+                {t('auth_register')}
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -128,7 +131,7 @@ export const AuthScreen: React.FC = () => {
           {/* Form */}
           <ThemedView type="backgroundElement" style={styles.formCard}>
             <ThemedText type="smallBold" style={styles.label}>
-              E-posta Adresi
+              {t('auth_email')}
             </ThemedText>
             <View style={[styles.inputWrapper, { borderColor: colors.border }]}>
               <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
@@ -144,7 +147,7 @@ export const AuthScreen: React.FC = () => {
             </View>
 
             <ThemedText type="smallBold" style={[styles.label, styles.topSpacing]}>
-              {isLogin ? 'Master Şifre' : 'Master Şifre Oluştur'}
+              {isLogin ? t('auth_master_password') : t('auth_create_master_password')}
             </ThemedText>
             <View style={[styles.inputWrapper, { borderColor: colors.border }]}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
@@ -169,7 +172,7 @@ export const AuthScreen: React.FC = () => {
             {!isLogin && (
               <>
                 <ThemedText type="smallBold" style={[styles.label, styles.topSpacing]}>
-                  Şifreyi Onayla
+                  {t('auth_confirm_password')}
                 </ThemedText>
                 <View style={[styles.inputWrapper, { borderColor: colors.border }]}>
                   <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
@@ -186,7 +189,9 @@ export const AuthScreen: React.FC = () => {
                 <View style={styles.securityWarning}>
                   <CheckCircle size={16} color={colors.success} style={styles.warningIcon} />
                   <ThemedText type="small" style={{ color: colors.textSecondary, flex: 1 }}>
-                    Master Şifre yerel anahtarınızı türetir ve kurtarılamaz. Lütfen bunu güvenli bir yerde saklayın.
+                    {locale === 'tr' 
+                      ? 'Master Şifre yerel anahtarınızı türetir ve kurtarılamaz. Lütfen bunu güvenli bir yerde saklayın.' 
+                      : 'Master Password derives your local key and is unrecoverable. Please store it securely.'}
                   </ThemedText>
                 </View>
               </>
@@ -207,7 +212,7 @@ export const AuthScreen: React.FC = () => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <ThemedText style={styles.submitButtonText}>
-                  {isLogin ? 'Kilitleri Aç ve Giriş Yap' : 'Kasa Oluştur ve Kayıt Ol'}
+                  {isLogin ? t('auth_submit_login') : t('auth_submit_register')}
                 </ThemedText>
               )}
             </TouchableOpacity>

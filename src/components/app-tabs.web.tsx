@@ -14,18 +14,21 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useLanguage } from '@/context/LanguageContext';
+
 
 export default function AppTabs() {
+  const { t } = useLanguage();
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton>{t('tab_home')}</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton>Ayarlar</TabButton>
+            <TabButton>{t('tab_settings')}</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -55,7 +58,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          {t('app_name')}
         </ThemedText>
 
         {props.children}

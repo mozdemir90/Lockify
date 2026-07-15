@@ -1,4 +1,6 @@
 import CryptoJS from 'crypto-js';
+import * as Crypto from 'expo-crypto';
+
 
 /**
  * Derives a strong 256-bit encryption key from a master password and salt using PBKDF2.
@@ -53,7 +55,11 @@ export function decryptData(ciphertext: string, key: string): string {
  * Generates a random salt (hex string).
  */
 export function generateRandomSalt(): string {
-  return CryptoJS.lib.WordArray.random(128 / 8).toString();
+  const randomBytes = new Uint8Array(16);
+  Crypto.getRandomValues(randomBytes);
+  return Array.from(randomBytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**

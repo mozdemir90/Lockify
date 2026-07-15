@@ -9,6 +9,7 @@
     "expo": "~57.0.4",
     "expo-clipboard": "^57.0.0",
     "expo-constants": "~57.0.3",
+    "expo-crypto": "~57.0.0",
     "expo-device": "~57.0.0",
     "expo-document-picker": "^57.0.0",
     "expo-file-system": "^57.0.0",
@@ -17,6 +18,7 @@
     "expo-image": "~57.0.0",
     "expo-linking": "~57.0.2",
     "expo-local-authentication": "^57.0.0",
+    "expo-localization": "~57.0.0",
     "expo-router": "~57.0.4",
     "expo-secure-store": "^57.0.0",
     "expo-splash-screen": "~57.0.2",
@@ -39,13 +41,15 @@
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"
   },

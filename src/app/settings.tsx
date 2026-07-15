@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
+import { useLanguage } from '../context/LanguageContext';
 import { ThemedText } from '../components/themed-text';
+
 import { ThemedView } from '../components/themed-view';
 import { Colors } from '../constants/theme';
 import { useColorScheme } from 'react-native';
@@ -30,7 +32,8 @@ import {
   RefreshCw,
   Sliders,
   Check,
-  FileText
+  FileText,
+  Globe
 } from 'lucide-react-native';
 import { generatePassword } from '../services/crypto';
 import { getVaultEntries, saveVaultEntries, DecryptedCredentialEntry } from '../services/db';
@@ -38,8 +41,10 @@ import { getVaultEntries, saveVaultEntries, DecryptedCredentialEntry } from '../
 export default function SettingsScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const { t, locale, setLocale } = useLanguage();
 
   const { 
+
     activeUser, 
     biometricsAvailable, 
     biometricsEnabled, 
@@ -69,20 +74,20 @@ export default function SettingsScreen() {
     if (value) {
       if (!biometricsAvailable) {
         Alert.alert(
-          'Biyometri Desteklenmiyor', 
-          'Cihazınızda biyometrik doğrulama (Parmak izi / Face ID) aktif değil veya bu cihaz tarafından desteklenmiyor.\n\nÇözüm: Telefonunuzun sistem ayarlarına giderek parmak izinizi veya yüzünüzü sisteme tanımladığınızdan emin olun.'
+          t('settings_bio_not_supported'), 
+          t('settings_bio_not_supported_desc')
         );
         return;
       }
       try {
         await enableBiometrics();
-        Alert.alert('Başarılı', 'Parmak izi / Face ID kilidi başarıyla aktif edildi.');
+        Alert.alert(t('success'), t('settings_success_bio'));
       } catch (e: any) {
-        Alert.alert('Hata', 'Biyometrik kilit ayarlanamadı: ' + e.message);
+        Alert.alert(t('error'), (locale === 'tr' ? 'Biyometrik kilit ayarlanamadı: ' : 'Failed to setup biometrics: ') + e.message);
       }
     } else {
       await disableSecurityLocks();
-      Alert.alert('Bilgi', 'Güvenlik kilidi (PIN ve Biyometrik) başarıyla devre dışı bırakıldı.');
+      Alert.alert(t('info'), t('settings_success_locks_disabled'));
     }
   };
 
@@ -93,7 +98,7 @@ export default function SettingsScreen() {
       setPinModalVisible(true);
     } else {
       await disableSecurityLocks();
-      Alert.alert('Bilgi', 'PIN kilidi devre dışı bırakıldı.');
+      Alert.alert(t('info'), t('settings_success_pin_disabled'));
     }
   };
 
@@ -283,16 +288,16 @@ export default function SettingsScreen() {
 
   const savePinConfig = async () => {
     if (pinValue.length !== 4 || isNaN(Number(pinValue))) {
-      Alert.alert('Hata', 'PIN kodu 4 haneli bir sayı olmalıdır.');
+      Alert.alert(t('error'), t('settings_pin_modal_error'));
       return;
     }
 
     try {
       await enablePin(pinValue);
       setPinModalVisible(false);
-      Alert.alert('Başarılı', 'PIN kilidi aktif edildi.');
+      Alert.alert(t('success'), t('settings_pin_modal_success'));
     } catch (e) {
-      Alert.alert('Hata', 'PIN kaydedilemedi.');
+      Alert.alert(t('error'), locale === 'tr' ? 'PIN kaydedilemedi.' : 'Failed to save PIN.');
     }
   };
 
@@ -334,20 +339,40 @@ export default function SettingsScreen() {
           </View>
           <View>
             <ThemedText style={{ fontWeight: 'bold' }}>{activeUser}</ThemedText>
-            <ThemedText type="small" style={{ color: colors.textSecondary }}>Kasa Sahibi</ThemedText>
+            <ThemedText type="small" style={{ color: colors.textSecondary }}>{t('settings_owner')}</ThemedText>
+          </View>
+        </ThemedView>
+
+        {/* Language Selection */}
+        <ThemedText type="smallBold" style={styles.sectionLabel}>{t('settings_language')}</ThemedText>
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <View style={styles.rowItem}>
+            <View style={styles.rowLabelGroup}>
+              <Globe size={20} color={colors.text} style={{ marginRight: 12 }} />
+              <View>
+                <ThemedText style={styles.rowTitle}>{locale === 'tr' ? 'Türkçe (TR)' : 'English (EN)'}</ThemedText>
+                <ThemedText type="small" style={{ color: colors.textSecondary }}>{t('settings_language_desc')}</ThemedText>
+              </View>
+            </View>
+            <Switch
+              value={locale === 'en'}
+              onValueChange={(value) => setLocale(value ? 'en' : 'tr')}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
+            />
           </View>
         </ThemedView>
 
         {/* Security Options */}
-        <ThemedText type="smallBold" style={styles.sectionLabel}>Güvenlik Seçenekleri</ThemedText>
+        <ThemedText type="smallBold" style={styles.sectionLabel}>{t('settings_sec_title')}</ThemedText>
         <ThemedView type="backgroundElement" style={styles.card}>
           {/* Biometrics */}
           <View style={[styles.rowItem, { borderBottomColor: colors.border }]}>
             <View style={styles.rowLabelGroup}>
               <Fingerprint size={20} color={colors.text} style={{ marginRight: 12 }} />
               <View>
-                <ThemedText style={styles.rowTitle}>Parmak İzi / Face ID</ThemedText>
-                <ThemedText type="small" style={{ color: colors.textSecondary }}>Biyometrik kilit açma</ThemedText>
+                <ThemedText style={styles.rowTitle}>{t('settings_biometrics')}</ThemedText>
+                <ThemedText type="small" style={{ color: colors.textSecondary }}>{t('settings_biometrics_desc')}</ThemedText>
               </View>
             </View>
             <Switch
@@ -363,8 +388,8 @@ export default function SettingsScreen() {
             <View style={styles.rowLabelGroup}>
               <Lock size={20} color={colors.text} style={{ marginRight: 12 }} />
               <View>
-                <ThemedText style={styles.rowTitle}>PIN Kodu Kilidi</ThemedText>
-                <ThemedText type="small" style={{ color: colors.textSecondary }}>4 haneli sayısal şifre</ThemedText>
+                <ThemedText style={styles.rowTitle}>{t('settings_pin')}</ThemedText>
+                <ThemedText type="small" style={{ color: colors.textSecondary }}>{t('settings_pin_desc')}</ThemedText>
               </View>
             </View>
             <Switch
@@ -377,13 +402,13 @@ export default function SettingsScreen() {
         </ThemedView>
 
         {/* Password Generator Card */}
-        <ThemedText type="smallBold" style={styles.sectionLabel}>Şifre Üretici Araç</ThemedText>
+        <ThemedText type="smallBold" style={styles.sectionLabel}>{t('settings_gen_title')}</ThemedText>
         <ThemedView type="backgroundElement" style={styles.card}>
           <View style={styles.generatorOutputRow}>
             <TextInput
               value={generatedPassword}
               editable={false}
-              placeholder="Şifre üretmek için tıklayın"
+              placeholder={t('settings_gen_placeholder')}
               placeholderTextColor={colors.textSecondary}
               style={[styles.genOutputText, { color: colors.text }]}
             />
@@ -404,7 +429,7 @@ export default function SettingsScreen() {
 
           {/* Controls */}
           <View style={[styles.controlRow, { marginTop: 12 }]}>
-            <ThemedText style={{ flex: 1 }}>Karakter Uzunluğu ({genLength})</ThemedText>
+            <ThemedText style={{ flex: 1 }}>{t('settings_gen_length')} ({genLength})</ThemedText>
             <TextInput
               value={genLength}
               onChangeText={setGenLength}
@@ -419,57 +444,57 @@ export default function SettingsScreen() {
             {/* Upper */}
             <TouchableOpacity style={styles.checkboxItem} onPress={() => setGenUpper(!genUpper)}>
               <Switch value={genUpper} onValueChange={setGenUpper} trackColor={{ false: colors.border, true: colors.primary }} />
-              <ThemedText type="small" style={{ marginLeft: 6 }}>Büyük Harf</ThemedText>
+              <ThemedText type="small" style={{ marginLeft: 6 }}>{t('settings_gen_upper')}</ThemedText>
             </TouchableOpacity>
             {/* Lower */}
             <TouchableOpacity style={styles.checkboxItem} onPress={() => setGenLower(!genLower)}>
               <Switch value={genLower} onValueChange={setGenLower} trackColor={{ false: colors.border, true: colors.primary }} />
-              <ThemedText type="small" style={{ marginLeft: 6 }}>Küçük Harf</ThemedText>
+              <ThemedText type="small" style={{ marginLeft: 6 }}>{t('settings_gen_lower')}</ThemedText>
             </TouchableOpacity>
             {/* Numbers */}
             <TouchableOpacity style={styles.checkboxItem} onPress={() => setGenNumbers(!genNumbers)}>
               <Switch value={genNumbers} onValueChange={setGenNumbers} trackColor={{ false: colors.border, true: colors.primary }} />
-              <ThemedText type="small" style={{ marginLeft: 6 }}>Sayılar</ThemedText>
+              <ThemedText type="small" style={{ marginLeft: 6 }}>{t('settings_gen_numbers')}</ThemedText>
             </TouchableOpacity>
             {/* Symbols */}
             <TouchableOpacity style={styles.checkboxItem} onPress={() => setGenSymbols(!genSymbols)}>
               <Switch value={genSymbols} onValueChange={setGenSymbols} trackColor={{ false: colors.border, true: colors.primary }} />
-              <ThemedText type="small" style={{ marginLeft: 6 }}>Semboller</ThemedText>
+              <ThemedText type="small" style={{ marginLeft: 6 }}>{t('settings_gen_symbols')}</ThemedText>
             </TouchableOpacity>
           </View>
         </ThemedView>
 
         {/* Data Operations Card */}
-        <ThemedText type="smallBold" style={styles.sectionLabel}>Veri İşlemleri</ThemedText>
+        <ThemedText type="smallBold" style={styles.sectionLabel}>{t('settings_data_title')}</ThemedText>
         <ThemedView type="backgroundElement" style={styles.card}>
           <TouchableOpacity style={styles.rowItemBtn} onPress={handleCSVImport}>
             <FileText size={18} color={colors.text} style={{ marginRight: 12 }} />
             <View style={{ flex: 1 }}>
-              <ThemedText style={{ fontWeight: 'bold' }}>Excel / CSV İçe Aktar</ThemedText>
-              <ThemedText type="small" style={{ color: colors.textSecondary }}>Şifrelerinizi toplu olarak aktarın</ThemedText>
+              <ThemedText style={{ fontWeight: 'bold' }}>{t('settings_data_import')}</ThemedText>
+              <ThemedText type="small" style={{ color: colors.textSecondary }}>{t('settings_data_import_desc')}</ThemedText>
             </View>
           </TouchableOpacity>
         </ThemedView>
 
         {/* Session Card */}
-        <ThemedText type="smallBold" style={styles.sectionLabel}>Hesap Yönetimi</ThemedText>
+        <ThemedText type="smallBold" style={styles.sectionLabel}>{t('settings_account_title')}</ThemedText>
         <ThemedView type="backgroundElement" style={styles.card}>
           <TouchableOpacity style={[styles.rowItemBtn, { borderBottomWidth: 0.5, borderBottomColor: colors.border }]} onPress={lock}>
             <Lock size={18} color={colors.text} style={{ marginRight: 12 }} />
-            <ThemedText style={{ fontWeight: 'bold' }}>Kasayı Kilitle</ThemedText>
+            <ThemedText style={{ fontWeight: 'bold' }}>{t('settings_lock_btn')}</ThemedText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.rowItemBtn} onPress={() => {
             Alert.alert(
-              'Çıkış Yap',
-              'Hesabınızdan çıkış yapmak istiyor musunuz?',
+              t('settings_logout_btn'),
+              t('settings_logout_confirm'),
               [
-                { text: 'İptal', style: 'cancel' },
-                { text: 'Çıkış Yap', style: 'destructive', onPress: logout }
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('settings_logout_btn'), style: 'destructive', onPress: logout }
               ]
             );
           }}>
             <LogOut size={18} color={colors.error} style={{ marginRight: 12 }} />
-            <ThemedText style={{ color: colors.error, fontWeight: 'bold' }}>Oturumu Kapat</ThemedText>
+            <ThemedText style={{ color: colors.error, fontWeight: 'bold' }}>{t('settings_logout_btn')}</ThemedText>
           </TouchableOpacity>
         </ThemedView>
       </ScrollView>
@@ -478,9 +503,9 @@ export default function SettingsScreen() {
       {pinModalVisible && (
         <View style={styles.overlay}>
           <ThemedView type="backgroundElement" style={[styles.pinSetupCard, { borderColor: colors.border }]}>
-            <ThemedText type="subtitle" style={{ textAlign: 'center', marginBottom: 12 }}>PIN Kodu Oluştur</ThemedText>
+            <ThemedText type="subtitle" style={{ textAlign: 'center', marginBottom: 12 }}>{t('settings_pin_modal_title')}</ThemedText>
             <ThemedText type="small" style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
-              Kasanızı hızlıca açmak için 4 haneli bir sayı girin.
+              {t('settings_pin_modal_desc')}
             </ThemedText>
             <TextInput
               value={pinValue}
@@ -494,10 +519,10 @@ export default function SettingsScreen() {
             />
             <View style={styles.modalBtnsRow}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.backgroundSelected }]} onPress={() => setPinModalVisible(false)}>
-                <ThemedText style={{ fontWeight: 'bold' }}>İptal</ThemedText>
+                <ThemedText style={{ fontWeight: 'bold' }}>{t('cancel')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={savePinConfig}>
-                <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Kaydet</ThemedText>
+                <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>{t('home_btn_save')}</ThemedText>
               </TouchableOpacity>
             </View>
           </ThemedView>

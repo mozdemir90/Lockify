@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "VaultPass",
+    "name": "Lockify",
     "slug": "vaultpass",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vaultpass",
+    "scheme": "lockify",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.vaultpass.app"
+      "bundleIdentifier": "com.lockify.app"
     },
     "android": {
-      "package": "com.vaultpass.app",
+      "package": "com.lockify.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -40,7 +40,8 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

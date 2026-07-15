@@ -7,6 +7,8 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 
 import { SessionProvider, useSession } from '@/context/SessionContext';
+import { LanguageProvider } from '@/context/LanguageContext';
+
 import { AuthScreen } from '@/screens/AuthScreen';
 import { LockScreen } from '@/screens/LockScreen';
 import { ActivityIndicator, View } from 'react-native';
@@ -52,10 +54,12 @@ function AppContent() {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
-    <SessionProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AppContent />
-      </ThemeProvider>
-    </SessionProvider>
+    <LanguageProvider>
+      <SessionProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <AppContent />
+        </ThemeProvider>
+      </SessionProvider>
+    </LanguageProvider>
   );
 }

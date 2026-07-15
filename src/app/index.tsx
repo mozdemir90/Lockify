@@ -16,7 +16,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
+import { useLanguage } from '../context/LanguageContext';
 import { ThemedText } from '../components/themed-text';
+
 import { ThemedView } from '../components/themed-view';
 import { Colors } from '../constants/theme';
 import { useColorScheme } from 'react-native';
@@ -50,6 +52,8 @@ export default function HomeScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
   const { lock, activeUser, categories, addCategory } = useSession();
+  const { t, locale } = useLanguage();
+
 
   // Vault data state
   const [entries, setEntries] = useState<DecryptedCredentialEntry[]>([]);
@@ -409,7 +413,7 @@ export default function HomeScreen() {
     return <FolderOpen size={20} color={meta.color} />;
   };
 
-  const filterCategories = [{ key: 'all', label: 'Tümü' }, ...categories];
+  const filterCategories = [{ key: 'all', label: locale === 'tr' ? 'Tümü' : 'All' }, ...categories];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -422,7 +426,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.headerTexts}>
-            <ThemedText type="smallBold" style={{ color: colors.textSecondary, lineHeight: 14 }}>Merhaba,</ThemedText>
+            <ThemedText type="smallBold" style={{ color: colors.textSecondary, lineHeight: 14 }}>{locale === 'tr' ? 'Merhaba,' : 'Hello,'}</ThemedText>
             <ThemedText style={styles.headerTitle}>{activeUser}</ThemedText>
           </View>
         </View>
@@ -436,7 +440,7 @@ export default function HomeScreen() {
         <TextInput
           value={quickAddName}
           onChangeText={setQuickAddName}
-          placeholder="Hızlı Şifre Kaydet (Örn: Netflix)"
+          placeholder={locale === 'tr' ? "Hızlı Şifre Kaydet (Örn: Netflix)" : "Quick Add Password (e.g. Netflix)"}
           placeholderTextColor={colors.textSecondary}
           style={[styles.quickAddInput, { color: colors.text }]}
           onSubmitEditing={handleQuickAddSubmit}
@@ -455,7 +459,7 @@ export default function HomeScreen() {
         <TextInput
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Şifrelerde ara..."
+          placeholder={t('home_search_placeholder')}
           placeholderTextColor={colors.textSecondary}
           style={[styles.searchInput, { color: colors.text }]}
         />
@@ -510,7 +514,9 @@ export default function HomeScreen() {
       {filteredEntries.length > 0 && (
         <View style={styles.hintContainer}>
           <ThemedText type="small" style={{ color: colors.textSecondary, textAlign: 'center', fontStyle: 'italic' }}>
-            💡 Kategorisini hızlıca değiştirmek için şifre kartına basılı tutun.
+            {locale === 'tr' 
+              ? '💡 Kategorisini hızlıca değiştirmek için şifre kartına basılı tutun.' 
+              : '💡 Long press the card to quickly change its category.'}
           </ThemedText>
         </View>
       )}
@@ -520,7 +526,9 @@ export default function HomeScreen() {
         <View style={styles.emptyContainer}>
           <FolderOpen size={64} color={colors.textSecondary} style={{ opacity: 0.5, marginBottom: 16 }} />
           <ThemedText style={{ color: colors.textSecondary, textAlign: 'center' }}>
-            {searchQuery ? 'Aramanızla eşleşen şifre bulunamadı.' : 'Kasanız henüz boş. Eklemek için + butonuna basın.'}
+            {searchQuery 
+              ? (locale === 'tr' ? 'Aramanızla eşleşen şifre bulunamadı.' : 'No passwords matched your search.')
+              : t('home_empty_subtitle')}
           </ThemedText>
         </View>
       ) : (
@@ -609,16 +617,16 @@ export default function HomeScreen() {
           <ThemedView type="background" style={[styles.modalContent, { borderTopColor: colors.border }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="subtitle" style={styles.modalTitle}>
-                {editingEntry ? 'Şifre Güncelle' : 'Yeni Şifre Ekle'}
+                {editingEntry ? t('home_edit_title') : t('home_add_title')}
               </ThemedText>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <ThemedText style={{ color: colors.textSecondary, fontWeight: 'bold' }}>Kapat</ThemedText>
+                <ThemedText style={{ color: colors.textSecondary, fontWeight: 'bold' }}>{t('cancel')}</ThemedText>
               </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.modalFormScroll}>
               {/* Name */}
-              <ThemedText type="smallBold" style={styles.formLabel}>Hesap Adı / Web Sitesi</ThemedText>
+              <ThemedText type="smallBold" style={styles.formLabel}>{t('home_field_title')}</ThemedText>
               <View style={[styles.formInputWrapper, { borderColor: colors.border }]}>
                 <Globe size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
@@ -631,7 +639,7 @@ export default function HomeScreen() {
               </View>
 
               {/* Link */}
-              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Web Sitesi Bağlantısı (İsteğe Bağlı)</ThemedText>
+              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>{t('home_field_website')}</ThemedText>
               <View style={[styles.formInputWrapper, { borderColor: colors.border }]}>
                 <ExternalLink size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
@@ -645,7 +653,7 @@ export default function HomeScreen() {
               </View>
 
               {/* Type Select */}
-              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Kimlik Türü</ThemedText>
+              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>{t('home_field_type')}</ThemedText>
               <View style={styles.typeSelectorRow}>
                 {['email', 'username', 'phone'].map((type) => (
                   <TouchableOpacity
@@ -658,7 +666,7 @@ export default function HomeScreen() {
                     onPress={() => setFormType(type as any)}
                   >
                     <ThemedText style={formType === type ? styles.activeCategoryText : { color: colors.textSecondary }}>
-                      {type === 'email' ? 'E-posta' : type === 'username' ? 'Kullanıcı Adı' : 'Telefon'}
+                      {type === 'email' ? (locale === 'tr' ? 'E-posta' : 'Email') : type === 'username' ? (locale === 'tr' ? 'Kullanıcı Adı' : 'Username') : (locale === 'tr' ? 'Telefon' : 'Phone')}
                     </ThemedText>
                   </TouchableOpacity>
                 ))}
@@ -666,7 +674,7 @@ export default function HomeScreen() {
 
               {/* Identifier Input */}
               <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>
-                {formType === 'email' ? 'E-posta Adresi' : formType === 'username' ? 'Kullanıcı Adı' : 'Telefon Numarası'}
+                {formType === 'email' ? t('auth_email') : formType === 'username' ? (locale === 'tr' ? 'Kullanıcı Adı' : 'Username') : (locale === 'tr' ? 'Telefon Numarası' : 'Phone Number')}
               </ThemedText>
               <View style={[styles.formInputWrapper, { borderColor: colors.border }]}>
                 {formType === 'email' ? (
@@ -687,13 +695,13 @@ export default function HomeScreen() {
               </View>
 
               {/* Password Input */}
-              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Şifre</ThemedText>
+              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>{t('home_field_password')}</ThemedText>
               <View style={[styles.formInputWrapper, { borderColor: colors.border }]}>
                 <Lock size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
                   value={formPassword}
                   onChangeText={setFormPassword}
-                  placeholder="Şifre girin"
+                  placeholder={locale === 'tr' ? "Şifre girin" : "Enter password"}
                   placeholderTextColor={colors.textSecondary}
                   secureTextEntry={!showFormPassword}
                   autoCapitalize="none"
@@ -707,12 +715,12 @@ export default function HomeScreen() {
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.genBtn, { backgroundColor: colors.backgroundSelected }]} onPress={handleGeneratePassword}>
-                  <ThemedText type="code" style={{ color: colors.primary, fontSize: 10 }}>ÜRET</ThemedText>
+                  <ThemedText type="code" style={{ color: colors.primary, fontSize: 10 }}>{locale === 'tr' ? 'ÜRET' : 'GENERATE'}</ThemedText>
                 </TouchableOpacity>
               </View>
 
               {/* Category selector */}
-              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Kategori</ThemedText>
+              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>{t('home_field_category')}</ThemedText>
               <View style={styles.typeSelectorRow}>
                 {categories.map((cat) => {
                   const meta = getCategoryMeta(cat.key);
@@ -740,18 +748,18 @@ export default function HomeScreen() {
                     setNewCategoryModalVisible(true);
                   }}
                 >
-                  <ThemedText style={{ color: colors.primary, fontWeight: 'bold' }}>+ Yeni Ekle</ThemedText>
+                  <ThemedText style={{ color: colors.primary, fontWeight: 'bold' }}>{locale === 'tr' ? '+ Yeni Ekle' : '+ Add New'}</ThemedText>
                 </TouchableOpacity>
               </View>
 
               {/* Notes */}
-              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>Basit Not Alanı</ThemedText>
+              <ThemedText type="smallBold" style={[styles.formLabel, styles.topSpacing]}>{t('home_field_notes')}</ThemedText>
               <View style={[styles.formInputWrapper, styles.formTextAreaWrapper, { borderColor: colors.border }]}>
                 <FileText size={20} color={colors.textSecondary} style={{ marginRight: 8, marginTop: 10, alignSelf: 'flex-start' }} />
                 <TextInput
                   value={formNotes}
                   onChangeText={setFormNotes}
-                  placeholder="Ekstra notlar, kurtarma kodları vb."
+                  placeholder={locale === 'tr' ? "Ekstra notlar, kurtarma kodları vb." : "Extra notes, recovery codes etc."}
                   placeholderTextColor={colors.textSecondary}
                   multiline={true}
                   numberOfLines={4}
@@ -762,14 +770,14 @@ export default function HomeScreen() {
               {/* Save & Delete Buttons */}
               <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handleSave}>
                 <ThemedText style={styles.saveButtonText}>
-                  {editingEntry ? 'Güncellemeleri Kaydet' : 'Şifreyi Kaydet'}
+                  {editingEntry ? (locale === 'tr' ? 'Güncellemeleri Kaydet' : 'Save Changes') : (locale === 'tr' ? 'Şifreyi Kaydet' : 'Save Password')}
                 </ThemedText>
               </TouchableOpacity>
 
               {editingEntry ? (
                 <TouchableOpacity style={[styles.deleteButton, { borderColor: colors.error }]} onPress={handleDelete}>
                   <Trash2 size={18} color={colors.error} style={{ marginRight: 8 }} />
-                  <ThemedText style={{ color: colors.error, fontWeight: 'bold' }}>Bu Kaydı Sil</ThemedText>
+                  <ThemedText style={{ color: colors.error, fontWeight: 'bold' }}>{locale === 'tr' ? 'Bu Kaydı Sil' : 'Delete This Entry'}</ThemedText>
                 </TouchableOpacity>
               ) : null}
             </ScrollView>
@@ -788,15 +796,17 @@ export default function HomeScreen() {
           <ThemedView type="background" style={[styles.modalContent, styles.moveModalContent, { borderTopColor: colors.border }]}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1, marginRight: 10 }}>
-                <ThemedText type="subtitle" style={styles.modalTitle}>Kategoriye Taşı</ThemedText>
+                <ThemedText type="subtitle" style={styles.modalTitle}>{locale === 'tr' ? 'Kategoriye Taşı' : 'Move to Category'}</ThemedText>
                 {selectedEntryForMove && (
                   <ThemedText type="small" style={{ color: colors.textSecondary, marginTop: 2 }}>
-                    "{selectedEntryForMove.name}" hesabını taşımak istediğiniz kategoriyi seçin.
+                    {locale === 'tr' 
+                      ? `"${selectedEntryForMove.name}" hesabını taşımak istediğiniz kategoriyi seçin.` 
+                      : `Select the category you want to move "${selectedEntryForMove.name}" to.`}
                   </ThemedText>
                 )}
               </View>
               <TouchableOpacity onPress={() => setMoveModalVisible(false)}>
-                <ThemedText style={{ color: colors.textSecondary, fontWeight: 'bold' }}>Kapat</ThemedText>
+                <ThemedText style={{ color: colors.textSecondary, fontWeight: 'bold' }}>{t('cancel')}</ThemedText>
               </TouchableOpacity>
             </View>
 
@@ -830,7 +840,7 @@ export default function HomeScreen() {
                     </View>
                     {isCurrent && (
                       <View style={[styles.currentBadge, { backgroundColor: colors.primary + '15' }]}>
-                        <ThemedText type="small" style={{ color: colors.primary, fontWeight: 'bold' }}>Mevcut</ThemedText>
+                        <ThemedText type="small" style={{ color: colors.primary, fontWeight: 'bold' }}>{locale === 'tr' ? 'Mevcut' : 'Current'}</ThemedText>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -849,7 +859,7 @@ export default function HomeScreen() {
                     <Plus size={18} color={colors.primary} />
                   </View>
                   <ThemedText style={[styles.moveLabel, { color: colors.primary, fontWeight: 'bold' }]}>
-                    Yeni Kategori Ekle
+                    {locale === 'tr' ? 'Yeni Kategori Ekle' : 'Add New Category'}
                   </ThemedText>
                 </View>
               </TouchableOpacity>
@@ -870,11 +880,11 @@ export default function HomeScreen() {
       >
         <View style={styles.modalOverlay}>
           <ThemedView type="backgroundElement" style={styles.alertContent}>
-            <ThemedText style={styles.alertTitle}>Yeni Kategori Ekle</ThemedText>
+            <ThemedText style={styles.alertTitle}>{locale === 'tr' ? 'Yeni Kategori Ekle' : 'Add New Category'}</ThemedText>
             <TextInput
               value={newCategoryName}
               onChangeText={setNewCategoryName}
-              placeholder="Kategori Adı (Örn: E-Devlet, Oyun)"
+              placeholder={locale === 'tr' ? "Kategori Adı (Örn: E-Devlet, Oyun)" : "Category Name (e.g. Work, Games)"}
               placeholderTextColor={colors.textSecondary}
               autoFocus={true}
               style={[styles.alertInput, { color: colors.text, borderColor: colors.border }]}
@@ -888,13 +898,13 @@ export default function HomeScreen() {
                   setNewCategorySource(null);
                 }}
               >
-                <ThemedText style={{ color: colors.textSecondary }}>İptal</ThemedText>
+                <ThemedText style={{ color: colors.textSecondary }}>{t('cancel')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.alertButton, { backgroundColor: colors.primary }]} 
                 onPress={handleAddNewCategory}
               >
-                <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Ekle</ThemedText>
+                <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>{locale === 'tr' ? 'Ekle' : 'Add'}</ThemedText>
               </TouchableOpacity>
             </View>
           </ThemedView>

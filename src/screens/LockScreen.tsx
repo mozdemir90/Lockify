@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '../context/SessionContext';
 import { ThemedText } from '../components/themed-text';
+import { useLanguage } from '../context/LanguageContext';
 import { Colors } from '../constants/theme';
 import { useColorScheme } from 'react-native';
 import { ShieldCheck, Fingerprint, Delete, LogOut } from 'lucide-react-native';
@@ -25,9 +26,18 @@ export const LockScreen: React.FC = () => {
     unlockBiometric, 
     logout 
   } = useSession();
+  const { t, locale } = useLanguage();
 
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleBiometricUnlock = async () => {
+    try {
+      await unlockBiometric();
+    } catch (e) {
+      console.warn('Biometric unlock failed', e);
+    }
+  };
 
   // Trigger biometric unlock automatically on mount if enabled
   useEffect(() => {
@@ -55,21 +65,13 @@ export const LockScreen: React.FC = () => {
     try {
       const success = await unlockPin(enteredPin);
       if (!success) {
-        Alert.alert('Hata', 'Girdiğiniz PIN kodu hatalı.');
+        Alert.alert(t('error'), t('lock_pin_error'));
         setPin('');
       }
     } catch (e) {
       setPin('');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleBiometricUnlock = async () => {
-    try {
-      await unlockBiometric();
-    } catch (e) {
-      console.warn('Biometric unlock failed', e);
     }
   };
 
@@ -81,10 +83,10 @@ export const LockScreen: React.FC = () => {
           <ShieldCheck size={48} color={colors.primary} />
         </View>
         <ThemedText type="subtitle" style={styles.title}>
-          VaultPass Kilitli
+          {t('app_name')} {locale === 'tr' ? 'Kilitli' : 'Locked'}
         </ThemedText>
         <ThemedText type="small" style={{ color: colors.textSecondary }}>
-          {activeUser} hesabı için kilit açın.
+          {locale === 'tr' ? `${activeUser} hesabı için kilit açın.` : `Unlock for account ${activeUser}.`}
         </ThemedText>
       </View>
 
@@ -159,18 +161,20 @@ export const LockScreen: React.FC = () => {
         style={styles.logoutButton} 
         onPress={() => {
           Alert.alert(
-            'Çıkış Yap',
-            'Bu hesaptan çıkış yapmak istiyor musunuz? PIN ve parmak izi ayarlarınız temizlenecektir.',
+            locale === 'tr' ? 'Çıkış Yap' : 'Log Out',
+            locale === 'tr' 
+              ? 'Bu hesaptan çıkış yapmak istiyor musunuz? PIN ve parmak izi ayarlarınız temizlenecektir.'
+              : 'Are you sure you want to log out of this account? Your PIN and biometric settings will be cleared.',
             [
-              { text: 'İptal', style: 'cancel' },
-              { text: 'Çıkış Yap', style: 'destructive', onPress: logout }
+              { text: t('cancel'), style: 'cancel' },
+              { text: locale === 'tr' ? 'Çıkış Yap' : 'Log Out', style: 'destructive', onPress: logout }
             ]
           );
         }}
       >
         <LogOut size={16} color={colors.error} style={{ marginRight: 6 }} />
         <ThemedText type="small" style={{ color: colors.error, fontWeight: 'bold' }}>
-          Başka Hesapla Giriş Yap
+          {locale === 'tr' ? 'Başka Hesapla Giriş Yap' : 'Log in with Another Account'}
         </ThemedText>
       </TouchableOpacity>
 
