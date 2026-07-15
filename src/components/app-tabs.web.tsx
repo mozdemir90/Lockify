@@ -53,6 +53,7 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 export function CustomTabList(props: TabListProps) {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { t } = useLanguage();
 
   return (
     <View {...props} style={styles.tabListContainer}>
