@@ -96,7 +96,7 @@ export async function registerUser(email: string, masterPassword: string, salt: 
   }
 
   // Derive master key
-  const masterKey = deriveKey(masterPassword, salt);
+  const masterKey = await deriveKey(masterPassword, salt);
   
   // Encrypt validation string to verify master password later
   const encryptedMasterKeySignature = encryptData('VAULT_KEY_VALID', masterKey);
@@ -134,7 +134,7 @@ export async function loginUser(email: string, masterPassword: string): Promise<
     throw new Error('Hesap bulunamadı. Lütfen önce kayıt olun.');
   }
 
-  const masterKey = deriveKey(masterPassword, user.salt);
+  const masterKey = await deriveKey(masterPassword, user.salt);
   const decryptedSignature = decryptData(user.encryptedMasterKeySignature, masterKey);
 
   if (decryptedSignature !== 'VAULT_KEY_VALID') {

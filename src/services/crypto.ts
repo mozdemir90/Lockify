@@ -1,84 +1,56 @@
-import CryptoJS from 'crypto-js';
+import aesjs from 'aes-js';
 import * as Crypto from 'expo-crypto';
-import { requireNativeModule } from 'expo-modules-core';
-
-// Safely resolve native ExpoCrypto module
-let ExpoCrypto: any = null;
-try {
-  ExpoCrypto = requireNativeModule('ExpoCrypto');
-} catch (e) {
-  console.warn('ExpoCrypto native module not found');
-}
-
-// Polyfill global.crypto for CryptoJS to generate secure random values on native devices
-if (typeof global.crypto === 'undefined') {
-  global.crypto = {} as any;
-}
-
-if (!global.crypto.getRandomValues) {
-  global.crypto.getRandomValues = function (array: any) {
-    if (!array) return array;
-
-    // Web environment native crypto
-    if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.getRandomValues === 'function') {
-      return window.crypto.getRandomValues(array);
-    }
-
-    // Native environment via ExpoCrypto
-    if (ExpoCrypto && typeof ExpoCrypto.getRandomValues === 'function') {
-      try {
-        // Native ExpoCrypto requires a Uint8Array. Create a Uint8Array view over array's buffer.
-        const uint8 = array instanceof Uint8Array 
-          ? array 
-          : new Uint8Array(array.buffer, array.byteOffset || 0, array.byteLength || array.length);
-        
-        ExpoCrypto.getRandomValues(uint8);
-        return array;
-      } catch (e) {
-        console.warn('ExpoCrypto.getRandomValues native call failed, using fallback:', e);
-      }
-    }
-
-    // Fallback for any typed array using Math.random
-    const uint8Fallback = array instanceof Uint8Array 
-      ? array 
-      : new Uint8Array(array.buffer, array.byteOffset || 0, array.byteLength || array.length);
-
-    for (let i = 0; i < uint8Fallback.length; i++) {
-      uint8Fallback[i] = Math.floor(Math.random() * 256);
-    }
-    return array;
-  } as any;
-}
 
 /**
- * Derives a strong 256-bit encryption key from a master password and salt using PBKDF2.
- * @param masterPassword The user's master password.
- * @param salt A unique salt.
- * @returns Hex-encoded key string.
+ * Derives a strong 256-bit encryption key asynchronously using native SHA-256 (1000 rounds).
+ * Fast, native C++/Java execution on mobile without stack overflow.
  */
-export function deriveKey(masterPassword: string, salt: string): string {
-  const key = CryptoJS.PBKDF2(masterPassword, salt, {
-    keySize: 256 / 32, // 256 bits = 8 words
-    iterations: 1000,
-    hasher: CryptoJS.algo.SHA256,
-  });
-  return key.toString();
+export async function deriveKey(masterPassword: string, salt: string): Promise<string> {
+  let current = masterPassword + salt;
+  for (let i = 0; i < 1000; i++) {
+    current = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, current);
+  }
+  return current; // 64-char hex string (32 bytes = 256 bits)
 }
 
 /**
- * Encrypts a string using AES-256 with a raw WordArray key and IV.
+ * Converts a hex string to Uint8Array bytes.
+ */
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Converts Uint8Array bytes to a hex string.
+ */
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Encrypts a string using AES-256-CTR mode with aes-js.
  * @param plaintext The plain text to encrypt.
  * @param keyHex The derived master key (hex string).
- * @returns Ciphertext string.
+ * @returns Ciphertext hex string.
  */
 export function encryptData(plaintext: string, keyHex: string): string {
   if (!plaintext) return '';
   try {
-    const key = CryptoJS.enc.Hex.parse(keyHex);
-    // Use first 16 bytes of key as IV for deterministic AES-256-CBC without random salt generation
-    const iv = CryptoJS.lib.WordArray.create(key.words.slice(0, 4));
-    return CryptoJS.AES.encrypt(plaintext, key, { iv }).toString();
+    const textBytes = aesjs.utils.utf8.toBytes(plaintext);
+    const keyBytes = hexToBytes(keyHex.padEnd(64, '0').slice(0, 64)); // Ensure 32 bytes
+    
+    // Deterministic counter for CTR mode using first 16 bytes of key
+    const counter = new aesjs.Counter(keyBytes.slice(0, 16));
+    const aesCtr = new aesjs.ModeOfOperation.ctr(keyBytes, counter);
+    const encryptedBytes = aesCtr.encrypt(textBytes);
+    
+    return bytesToHex(encryptedBytes);
   } catch (error) {
     console.error('encryptData error:', error);
     return '';
@@ -86,52 +58,34 @@ export function encryptData(plaintext: string, keyHex: string): string {
 }
 
 /**
- * Decrypts an AES-256 encrypted string.
- * @param ciphertext The encrypted text.
+ * Decrypts an AES-256-CTR encrypted string.
+ * @param ciphertextHex The encrypted text in hex format.
  * @param keyHex The derived master key (hex string).
  * @returns Plaintext string, or empty string if decryption fails.
  */
-export function decryptData(ciphertext: string, keyHex: string): string {
-  if (!ciphertext) return '';
+export function decryptData(ciphertextHex: string, keyHex: string): string {
+  if (!ciphertextHex) return '';
   try {
-    const key = CryptoJS.enc.Hex.parse(keyHex);
-    const iv = CryptoJS.lib.WordArray.create(key.words.slice(0, 4));
-    const bytes = CryptoJS.AES.decrypt(ciphertext, key, { iv });
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decrypted) {
-      console.warn('Decryption resulted in empty string');
-      return '';
-    }
-    return decrypted;
+    const encryptedBytes = hexToBytes(ciphertextHex);
+    const keyBytes = hexToBytes(keyHex.padEnd(64, '0').slice(0, 64));
+    
+    const counter = new aesjs.Counter(keyBytes.slice(0, 16));
+    const aesCtr = new aesjs.ModeOfOperation.ctr(keyBytes, counter);
+    const decryptedBytes = aesCtr.decrypt(encryptedBytes);
+    
+    return aesjs.utils.utf8.fromBytes(decryptedBytes);
   } catch (error) {
-    console.error('Decryption error:', error);
+    console.error('decryptData error:', error);
     return '';
   }
 }
 
 /**
- * Generates a random salt (hex string).
+ * Generates a random salt (hex string) using native Expo Crypto.
  */
 export function generateRandomSalt(): string {
-  const randomBytes = new Uint8Array(16);
-  if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.getRandomValues === 'function') {
-    window.crypto.getRandomValues(randomBytes);
-  } else if (ExpoCrypto && typeof ExpoCrypto.getRandomValues === 'function') {
-    try {
-      ExpoCrypto.getRandomValues(randomBytes);
-    } catch (e) {
-      for (let i = 0; i < randomBytes.length; i++) {
-        randomBytes[i] = Math.floor(Math.random() * 256);
-      }
-    }
-  } else {
-    for (let i = 0; i < randomBytes.length; i++) {
-      randomBytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  return Array.from(randomBytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  const bytes = Crypto.getRandomBytes(16);
+  return bytesToHex(bytes);
 }
 
 /**
@@ -176,7 +130,7 @@ export function generatePassword(
     guaranteedChars.push(allowedChars[randomIndex]);
   }
 
-  // Fisher-Yates shuffle algorithm (safe and unbiased)
+  // Fisher-Yates shuffle algorithm
   for (let i = guaranteedChars.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [guaranteedChars[i], guaranteedChars[j]] = [guaranteedChars[j], guaranteedChars[i]];
